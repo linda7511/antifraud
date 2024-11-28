@@ -27,8 +27,8 @@ def load_lpa_subtensor(
     # masking to avoid label leakage
     if "1hop_riskstat" in neigh_feat.keys() and len(blocks) >= 2:
         # nei_hop1 = get_k_neighs(graph, seeds, 1)
-        nei_hop1 = blocks[-2].dstdata['_ID']
-        neigh_feat['1hop_riskstat'][nei_hop1] = 0
+        nei_hop1 = blocks[-2].dstdata['_ID'] # 获取倒数第二个块（即一跳邻居）的目标节点的ID
+        neigh_feat['1hop_riskstat'][nei_hop1] = 0 # 将这些一跳邻居的风险特征设置为零
 
     if "2hop_riskstat" in neigh_feat.keys() and len(blocks) >= 3:
         # nei_hop2 = get_k_neighs(graph, seeds, 2)

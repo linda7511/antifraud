@@ -10,7 +10,7 @@ import os
 import time
 import argparse
 import pickle
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import networkx as nx
 import scipy.sparse as sp
 from sklearn.preprocessing import LabelEncoder
@@ -105,15 +105,16 @@ def k_neighs(
     risk_label: int = 1
 ) -> torch.Tensor:
     """return indices of risk k-hop neighbors
+    从给定的图中检索特定节点的k跳邻居的指标
 
     Args:
-        graph (dgl.DGLGraph): dgl graph dataset
-        center_idx (int): center node idx
-        k (int): k-hop neighs
-        where (str): {"predecessor", "successor"}
+        graph (dgl.DGLGraph): dgl graph dataset 使用 Deep Graph Library (DGL) 库表示。DGL 是一个专门用于图神经网络的库
+        center_idx (int): center node idx 中心节点的索引，即从该节点开始检索邻居
+        k (int): k-hop neighs 邻居的跳数
+        where (str): {"predecessor", "successor"} 检索中心节点的“入边”("in")邻居还是“出边”("out")邻居
         risk_label (int, optional): value of fruad label. Defaults to 1.
     """
-    target_idxs: torch.Tensor
+    target_idxs: torch.Tensor # 用于存储最终选择的邻居索引
     if k == 1:
         if where == "in":
             neigh_idxs = graph.predecessors(center_idx)
@@ -160,18 +161,23 @@ def count_risk_neighs(
 
 
 def feat_map():
-    tensor_list = []
-    feat_names = []
+    '''
+    从图中的每个节点生成特征映射
+
+    '''
+    tensor_list = [] # 存储每个节点的特征向量
+    feat_names = [] # 特征名称
     for idx in tqdm(range(graph.num_nodes())):
         neighs_1_of_center = k_neighs(graph, idx, 1, "in")
         neighs_2_of_center = k_neighs(graph, idx, 2, "in")
 
+        # 计算特征
         tensor = torch.FloatTensor([
-            edge_feat[neighs_1_of_center, 0].sum().item(),
+            edge_feat[neighs_1_of_center, 0].sum().item(), # 1跳邻居在 edge_feat 第0列的总和（度）
             # edge_feat[neighs_1_of_center, 0].std().item(),
             edge_feat[neighs_2_of_center, 0].sum().item(),
             # edge_feat[neighs_2_of_center, 0].std().item(),
-            edge_feat[neighs_1_of_center, 1].sum().item(),
+            edge_feat[neighs_1_of_center, 1].sum().item(), # 1跳邻居在 edge_feat 第1列的总和（riskstat？）
             # edge_feat[neighs_1_of_center, 1].std().item(),
             edge_feat[neighs_2_of_center, 1].sum().item(),
             # edge_feat[neighs_2_of_center, 1].std().item(),
@@ -217,6 +223,7 @@ if __name__ == "__main__":
     with open(os.path.join(DATADIR, "yelp_homo_adjlists.pickle"), 'rb') as file:
         homo = pickle.load(file)
     file.close()
+    # 提取边
     src = []
     tgt = []
     for i in homo:
@@ -225,10 +232,12 @@ if __name__ == "__main__":
             tgt.append(j)
     src = np.array(src)
     tgt = np.array(tgt)
+    # 创建dgl图
     g = dgl.graph((src, tgt))
     g.ndata['label'] = torch.from_numpy(labels.to_numpy()).to(torch.long)
     g.ndata['feat'] = torch.from_numpy(
         feat_data.to_numpy()).to(torch.float32)
+    # 保存图
     dgl.data.utils.save_graphs(DATADIR + "graph-yelp.bin", [g])
 
     # %%
@@ -289,6 +298,7 @@ if __name__ == "__main__":
     allt = []
     pair = ["Source", "Target", "Location", "Type"]
     for column in pair:
+        # 遍历指定的列（Source、Target、Location、Type），并为每个列生成边
         src, tgt = [], []
         edge_per_trans = 3
         for c_id, c_df in tqdm(data.groupby(column), desc=column):

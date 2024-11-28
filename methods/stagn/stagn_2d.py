@@ -9,6 +9,10 @@ from dgl.nn import GraphConv
 class TransactionGCN(torch.nn.Module):
     def __init__(self, in_feats, hidden_feats, out_feats, g, device):
         super().__init__()
+        # GraphConv 层通过聚合每个节点的邻居特征来更新节点的特征，输入in_feats维度，输出hidden_feats维度
+        # allow_zero_in_degree=True：这个参数指定了是否允许节点的度数为零。
+        # 如果设置为 True，GraphConv 层将为这些度数为零的节点分配一个可学习的偏置项，
+        # 以确保即使它们没有邻居也能生成有效的特征表示。
         self.conv1 = GraphConv(in_feats, hidden_feats,
                                allow_zero_in_degree=True)
         self.conv2 = GraphConv(hidden_feats, out_feats,
@@ -16,6 +20,7 @@ class TransactionGCN(torch.nn.Module):
         self.lin1 = nn.Linear(in_feats, hidden_feats)
         self.lin2 = nn.Linear(hidden_feats, out_feats)
 
+        # 创建一个形状为(节点数量, 边特征的维度)的空张量，并使用 Xavier 均匀初始化方法对其进行初始化
         g.ndata['feat'] = torch.nn.init.xavier_uniform_(torch.empty(
             g.num_nodes(), g.edata['feat'].shape[1])).to(torch.float32).to(device)
         g.ndata['h'] = g.ndata['feat']
@@ -26,6 +31,7 @@ class TransactionGCN(torch.nn.Module):
         e1 = torch.relu(self.lin1(e))
         g.ndata['h'] = h1
         g.edata['x'] = e1
+        # 新边特征=源节点特征+目标节点特征+当前边特征
         g.apply_edges(
             lambda edges: {'x': edges.src['h'] + edges.dst['h'] + edges.data['x']})
 
@@ -180,10 +186,11 @@ class stagn_2d_model(nn.Module):
         out = self.cnn_layer(out)  # all, 64, 8, 10
         node_embs, edge_embs = self.gcn(g, g.ndata['feat'], g.edata['feat'])
 
-        src_nds, dst_nds = g.edges()
-        src_feat = g.ndata['h'][src_nds]
+        src_nds, dst_nds = g.edges() #获取图中所有边的源节点和目标节点
+        src_feat = g.ndata['h'][src_nds] #提取源节点和目标节点的特征。
         dst_feat = g.ndata['h'][dst_nds]
         # all, 3, embedding_dim
+        # 将源节点特征、目标节点特征和边特征堆叠起来，形成一个综合的节点特征表示
         node_feats = torch.stack(
             [src_feat, dst_feat, edge_embs], dim=1).view(X_nume.shape[0], -1)
         out = self.flatten(out)

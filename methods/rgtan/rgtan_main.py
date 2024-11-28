@@ -45,7 +45,13 @@ def rgtan_main(feat_df, graph, train_idx, test_idx, labels, args, cat_features, 
         
     y = labels
     labels = torch.from_numpy(y.values).long().to(device)
-    loss_fn = nn.CrossEntropyLoss().to(device)
+
+    # 计算类别权重以处理类别不平衡
+    unique_labels, counts = torch.unique(labels[train_idx], return_counts=True)
+    label_weights = (1 / counts) * len(labels[train_idx]) / len(unique_labels)
+    label_weights = label_weights.to(device)
+
+    loss_fn = nn.CrossEntropyLoss(label_weights).to(device)
     for fold, (trn_idx, val_idx) in enumerate(kfold.split(feat_df.iloc[train_idx], y_target)):
         print(f'Training fold {fold + 1}')
         trn_ind, val_ind = torch.from_numpy(np.array(train_idx)[trn_idx]).long().to(
@@ -100,6 +106,7 @@ def rgtan_main(feat_df, graph, train_idx, test_idx, labels, args, cat_features, 
             # train_acc_list = []
             model.train()
             for step, (input_nodes, seeds, blocks) in enumerate(train_dataloader):
+                # 遍历 train_dataloader，这是一个数据加载器，它按批次提供训练数据。每个批次包含 input_nodes、seeds 和 blocks
                 # print(f"loading batch data...")
                 batch_inputs, batch_work_inputs, batch_neighstat_inputs, batch_labels, lpa_labels = load_lpa_subtensor(num_feat, cat_feat, nei_feat, neigh_padding_dict, labels,
                                                                                                                        seeds, input_nodes, device, blocks)
@@ -107,27 +114,30 @@ def rgtan_main(feat_df, graph, train_idx, test_idx, labels, args, cat_features, 
 
                 # batch_neighstat_inputs: {"degree":(|batch|, degree_dim)}
 
-                blocks = [block.to(device) for block in blocks]
+                blocks = [block.to(device) for block in blocks] # 将 blocks（可能是图数据块）转移到指定的设备（如CPU）上
+                # 模型前向传播，计算批次数据的预测结果（logits）
                 train_batch_logits = model(
                     blocks, batch_inputs, lpa_labels, batch_work_inputs, batch_neighstat_inputs)
+                # 创建一个掩码 mask 来过滤出标签为2的样本，然后在计算损失时忽略这些样本
                 mask = batch_labels == 2
                 train_batch_logits = train_batch_logits[~mask]
                 batch_labels = batch_labels[~mask]
                 # batch_labels[mask] = 0
 
                 train_loss = loss_fn(train_batch_logits, batch_labels)
-                # backward
+                # backward 反向传播和优化
                 optimizer.zero_grad()
                 train_loss.backward()
                 optimizer.step()
-                lr_scheduler.step()
-                train_loss_list.append(train_loss.cpu().detach().numpy())
+                lr_scheduler.step() # 更新学习率
+                train_loss_list.append(train_loss.cpu().detach().numpy()) # 将计算得到的损失添加到损失列表中，以便后续分析
 
+                # 每10个step评估一次模型性能
                 if step % 10 == 0:
                     tr_batch_pred = torch.sum(torch.argmax(train_batch_logits.clone(
-                    ).detach(), dim=1) == batch_labels) / batch_labels.shape[0]
+                    ).detach(), dim=1) == batch_labels) / batch_labels.shape[0] # 计算批次的准确率
                     score = torch.softmax(train_batch_logits.clone().detach(), dim=1)[
-                        :, 1].cpu().numpy()
+                        :, 1].cpu().numpy() # 计算预测为正类的概率
                     try:
                         print('In epoch:{:03d}|batch:{:04d}, train_loss:{:4f}, '
                               'train_ap:{:.4f}, train_acc:{:.4f}, train_auc:{:.4f}'.format(epoch, step,

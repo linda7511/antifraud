@@ -2,7 +2,7 @@ dataset: S-FFSD
 
 test_size: 0.2
 
-epochs: 70
+epochs: 150
 attention_hidden_dim: 150
 lr: 0.002
 device: cuda:0

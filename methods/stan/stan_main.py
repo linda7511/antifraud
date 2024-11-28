@@ -11,6 +11,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score, f1_
 
 
 def to_pred(logits: torch.Tensor) -> list:
+    #用于将模型的输出转换为预测类别
     with torch.no_grad():
         pred = F.softmax(logits, dim=1).cpu()
         pred = pred.argmax(dim=1)
@@ -40,36 +41,41 @@ def att_train(
     nume_feats = x_train
     labels = y_train
 
+    # 如果一个张量 requires_grad 设置为 True，
+    # 那么 PyTorch 会自动计算这个张量在前向传播过程中的梯度，并且在反向传播时将其用于参数更新
     nume_feats.requires_grad = False
     labels.requires_grad = False
 
     nume_feats.to(device)
     labels = labels.to(device)
 
-    # anti label imbalance
+    # 对抗类别不平衡
     unique_labels, counts = torch.unique(labels, return_counts=True)
     weights = (1 / counts)*len(labels)/len(unique_labels)
-
+    # 优化器与损失函数
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_func = torch.nn.CrossEntropyLoss(weights)
 
     batch_num = ceil(len(labels) / batch_size)
+
+    # 训练循环
     for epoch in range(epochs):
 
         loss = 0.
         pred = []
 
         for batch in (range(batch_num)):
-            optimizer.zero_grad()
+            optimizer.zero_grad()#清除优化器的梯度
 
+            # 根据批次掩码获取当前批次数据
             batch_mask = list(
                 range(batch*batch_size, min((batch+1)*batch_size, len(labels))))
 
-            output = model(nume_feats[batch_mask])
+            output = model(nume_feats[batch_mask])#通过模型获取预测输出
 
-            batch_loss = loss_func(output, labels[batch_mask])
-            batch_loss.backward()
-            optimizer.step()
+            batch_loss = loss_func(output, labels[batch_mask])#计算模型输出和真实标签之间的损失
+            batch_loss.backward()#反向传播
+            optimizer.step()#更新模型参数
 
             loss += batch_loss.item()
             # print(to_pred(output))
@@ -91,6 +97,7 @@ def att_train(
     batch_num_test = ceil(len(labels_test) / batch_size)
     with torch.no_grad():
         pred = []
+        # 测试循环
         for batch in range(batch_num):
             optimizer.zero_grad()
             batch_mask = list(

@@ -73,6 +73,7 @@ class multi_HOGRL_Model(nn.Module):
             layer_output = getattr(self, 'Layers' + str(i))(x, edge_index[i])
             layer_outputs.append(layer_output)
 
+        # 多关系图的处理，各种关系嵌入拼接
         x_temp = torch.cat(layer_outputs, dim=1)
 
         x = self.linear(x_temp)

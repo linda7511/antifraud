@@ -34,9 +34,9 @@ def mcnn_main(
     model = mcnn()
     model.to(device)
 
-    # anti label imbalance
+    # anti label imbalance处理类别不平衡
     unique_labels, counts = torch.unique(train_label, return_counts=True)
-    weights = (1 / counts)*len(train_label)/len(unique_labels)
+    weights = (1 / counts)*len(train_label)/len(unique_labels) # 每个类别的逆频率与平均期望频率相乘
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_func = torch.nn.CrossEntropyLoss(weights)
@@ -48,15 +48,15 @@ def mcnn_main(
         pred = []
 
         for batch in (range(batch_num)):
-            optimizer.zero_grad()
+            optimizer.zero_grad() # 梯度归零
 
             batch_mask = list(
-                range(batch*batch_size, min((batch+1)*batch_size, len(train_label))))
+                range(batch*batch_size, min((batch+1)*batch_size, len(train_label)))) # 计算当前批次的索引范围，len(train_label))计算结束索引，确保不会超出数据集的边界
 
-            output = model(train_feature[batch_mask])
+            output = model(train_feature[batch_mask]) #使用当前批次的特征数据train_feature[batch_mask]进行前向传播
 
             batch_loss = loss_func(output, train_label[batch_mask])
-            batch_loss.backward()
+            batch_loss.backward() # 反向传播，计算各参数梯度
             optimizer.step()
 
             loss += batch_loss.item()

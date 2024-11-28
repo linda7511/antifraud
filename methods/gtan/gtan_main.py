@@ -89,6 +89,7 @@ def gtan_main(feat_df, graph, train_idx, test_idx, labels, args, cat_features):
             # train_acc_list = []
             model.train()
             for step, (input_nodes, seeds, blocks) in enumerate(train_dataloader):
+                # 获取数值特征、类别特征、批次标签、修改后的批次标签
                 batch_inputs, batch_work_inputs, batch_labels, lpa_labels = load_lpa_subtensor(num_feat, cat_feat, labels,
                                                                                                seeds, input_nodes, device)
                 # (|input|, feat_dim); null; (|batch|,); (|input|,)

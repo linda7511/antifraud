@@ -76,6 +76,7 @@ def data_engineer_example(data_dir):
 
 
 def featmap_gen(tmp_card, tmp_df=None):
+    #
     # time_span = [20, 60, 120, 300, 600, 1500, 3600, 10800, 32400, 64800, 129600, 259200]
     time_span = [5, 20]
     time_name = [str(i) for i in time_span]
@@ -109,6 +110,8 @@ def featmap_gen(tmp_card, tmp_df=None):
 
 
 def data_engineer_benchmark(feat_df):
+    # 使用多进程来加速特征工程。它将数据分组成不同的源，并对每个源应用featmap_gen函数来生成特征。
+    # 完成后，它将所有生成的特征合并到一个数据框中，并用0填充缺失值。
     pool = mp.Pool(processes=4)
     args_all = [(card_n, card_df)
                 for card_n, card_df in feat_df.groupby("Source")]
@@ -152,10 +155,10 @@ def span_data_2d(
         time_windows: list = [1, 3, 5, 10, 20, 50, 100, 500]
 ) -> np.ndarray:
     """transform transaction record into feature matrices
-
+        将交易记录转换为特征矩阵
     Args:
         df (pd.DataFrame): transaction records
-        time_windows (list): feature generating time length
+        time_windows (list): feature generating time length用于生成特征的时间窗口长度（单位秒）
 
     Returns:
         np.ndarray: (sample_num, |time_windows|, feat_num) transaction feature matrices
@@ -170,11 +173,10 @@ def span_data_2d(
         feature_of_one_record = []
 
         for time_span in time_windows:
-            feature_of_one_timestamp = []
-            prev_records = data.iloc[(row_idx - time_span):row_idx, :]
-            prev_and_now_records = data.iloc[(
-                                                     row_idx - time_span):row_idx + 1, :]
-            prev_records = prev_records[prev_records['Source'] == acct_no]
+            feature_of_one_timestamp = [] #存储当前时间窗口下的特征
+            prev_records = data.iloc[(row_idx - time_span):row_idx, :] #获取当前记录之前time_span秒内的记录
+            prev_and_now_records = data.iloc[(row_idx - time_span):row_idx + 1, :] #获取当前记录之前 time_span 秒内以及当前记录的记录
+            prev_records = prev_records[prev_records['Source'] == acct_no] #过滤为与当前记录相同账户的记录
 
             # AvgAmountT
             feature_of_one_timestamp.append(
@@ -192,6 +194,7 @@ def span_data_2d(
             # feature_of_one_timestamp.append(prev_records['Type'].mode()[0] if len(prev_records) != 0 else 0)
 
             # TradingEntropyT ->  TradingEntropyT = EntT − NewEntT
+            # 计算 prev_records 和 prev_and_now_records 中 Amount 和 Type 字段的交易熵
             old_ent = calcu_trading_entropy(prev_records[['Amount', 'Type']])
             new_ent = calcu_trading_entropy(
                 prev_and_now_records[['Amount', 'Type']])
@@ -231,7 +234,7 @@ def span_data_3d(
     if spatio_windows is None:
         spatio_windows = [1, 2, 3, 4,5]
     data = data[data['Labels'] != 2]
-    data['Location'] = data['Location'].apply(lambda x: int(x.split('L')[1]))
+    data['Location'] = data['Location'].apply(lambda x: int(x.split('L')[1]))#将 Location 列的每个值按照 'L' 字符分割，然后取分割后的第二部分
     data['Location'] = data['Location'].apply(lambda x: 1 if x == 100 else x)
     data['Location'] = data['Location'].apply(lambda x: 2 if 102 >= x > 100 else x)
     data['Location'] = data['Location'].apply(lambda x: 3 if 110 >= x > 102 else x)

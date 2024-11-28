@@ -258,23 +258,24 @@ class Tabular1DCNN2(nn.Module):
         )
 
     def forward(self, x):
-        x = self.dropout1(self.bn1(x))
-        x = nn.functional.celu(self.dense1(x))
+        x = self.dropout1(self.bn1(x)) # 随机丢弃，防止过拟合
+        x = nn.functional.celu(self.dense1(x)) # dense1是全连接/线性层？celu是非线性激活
         x = x.reshape(x.shape[0], self.cha_input,
                       self.sign_size1)
 
-        x = self.bn_cv1(x)
-        x = nn.functional.relu(self.conv1(x))
-        x = self.ave_pool1(x)
+        x = self.bn_cv1(x) # 批量归一化层
+        x = nn.functional.relu(self.conv1(x)) # 卷积层
+        x = self.ave_pool1(x) # 池化层
 
         x_input = x
         x = self.dropout2(self.bn_cv2(x))
         x = nn.functional.relu(self.conv2(x))  # -> (|b|,24,32)
-        x = x + x_input
+        x = x + x_input # ？残差连接，它将当前层的输出与输入相加，这有助于缓解梯度消失问题，并允许网络学习到恒等映射
 
         x = self.bn_cv3(x)
         x = nn.functional.relu(self.conv3(x))  # -> (|b|,6,32)
 
+        # 重复卷积块，是加入了时间吗？但注意力机制呢？
         for i in range(6):
             x_input = x
             x = self.bn_cvs[i](x)
@@ -314,8 +315,11 @@ class TransEmbedding(nn.Module):
         super(TransEmbedding, self).__init__()
         self.time_pe = PosEncoding(dim=in_feats_dim, device=device, base=100)
 
-        self.cat_table = nn.ModuleDict({col: nn.Embedding(max(df[col].unique(
-        ))+1, in_feats_dim).to(device) for col in cat_features if col not in {"Labels", "Time"}})
+        self.cat_table = nn.ModuleDict(
+            {col: nn.Embedding(max(df[col].unique()) + 10, in_feats_dim).to(device) for col in cat_features if
+             col not in {"Labels", "Time"}})
+        # self.cat_table = nn.ModuleDict({col: nn.Embedding(max(df[col].unique(
+        # ))+1, in_feats_dim).to(device) for col in cat_features if col not in {"Labels", "Time"}})
 
         if isinstance(neigh_features, dict):
             self.nei_table = Tabular1DCNN2(input_dim=len(
